@@ -1,0 +1,10 @@
+!pip install -q streamlit
+!pip install pyresparser
+!pip install pdfminer3
+!pip install streamlit_tags
+!pip install pymysql
+import streamlit as st
+import nltk
+import spacy
+nltk.download('stopwords')
+spacy.load('en_core_web_sm')
