@@ -1,0 +1,147 @@
+import json
+cv_data = json.load(open("/content/CV-Parsing-using-Spacy-3/data/training/train_data.json", "r"))
+len(cv_data)
+!python -m spacy init fill-config /content/CV-Parsing-using-Spacy-3/data/training/base_config.cfg /content/CV-Parsing-using-Spacy-3/data/training/config.cfg
+cv_data[0]
+from re import T
+def get_spacy_doc(file, data):
+  nlp = spacy.blank('en')
+  db = DocBin()
+
+  for text,annot in tqdm(data):
+    doc = nlp.make_doc(text)
+    annot = annot['entities']
+
+    ents = []
+    entity_indices = []
+
+    for start, end, label in annot:
+      skip_entity = False
+
+      for idx in range(start,end):
+        if idx in entity_indices:
+          skip_entity = True
+          break
+      if skip_entity == True:
+        continue
+      
+      entity_indices = entity_indices + list(range(start,end))
+
+      try:
+        span = doc.char_span(start,end,label=label,alignment_mode='strict')
+      except:
+        continue
+
+      if span is None:
+        err_data = str([start,end]) + "   " + str(text) + "\n"
+        file.write(err_data)
+
+      else:
+        ents.append(span)
+
+    try:
+      doc.ents = ents
+      db.add(doc)
+    except:
+      pass
+  
+  return db
+  from sklearn.model_selection import train_test_split
+  train, test = train_test_split(cv_data, test_size=0.3)
+  len(train), len(test)
+  file = open('error.txt', 'w')
+
+db = get_spacy_doc(file, train)
+db.to_disk('train_data.spacy')
+
+db = get_spacy_doc(file, test)
+db.to_disk('test_data.spacy')
+
+file.close()
+len(db.tokens)
+!python -m spacy train /content/CV-Parsing-using-Spacy-3/data/training/config.cfg --output ./output --paths.train ./train_data.spacy --paths.dev ./test_data.spacy --gpu-id 0
+# This is an auto-generated partial config. To use it with 'spacy train'
+# you can run spacy init fill-config to auto-fill all default settings:
+# python -m spacy init fill-config ./base_config.cfg ./config.cfg
+[paths]
+train = null
+dev = null
+vectors = null
+[system]
+gpu_allocator = "pytorch"
+
+[nlp]
+lang = "en"
+pipeline = ["transformer","ner"]
+batch_size = 128
+
+[components]
+
+[components.transformer]
+factory = "transformer"
+
+[components.transformer.model]
+@architectures = "spacy-transformers.TransformerModel.v3"
+name = "roberta-base"
+tokenizer_config = {"use_fast": true}
+
+[components.transformer.model.get_spans]
+@span_getters = "spacy-transformers.strided_spans.v1"
+window = 128
+stride = 96
+
+[components.ner]
+factory = "ner"
+
+[components.ner.model]
+@architectures = "spacy.TransitionBasedParser.v2"
+state_type = "ner"
+extra_state_tokens = false
+hidden_width = 64
+maxout_pieces = 2
+use_upper = false
+nO = null
+
+[components.ner.model.tok2vec]
+@architectures = "spacy-transformers.TransformerListener.v1"
+grad_factor = 1.0
+
+[components.ner.model.tok2vec.pooling]
+@layers = "reduce_mean.v1"
+
+[corpora]
+
+[corpora.train]
+@readers = "spacy.Corpus.v1"
+path = ${paths.train}
+max_length = 0
+
+[corpora.dev]
+@readers = "spacy.Corpus.v1"
+path = ${paths.dev}
+max_length = 0
+
+[training]
+accumulate_gradient = 3
+dev_corpus = "corpora.dev"
+train_corpus = "corpora.train"
+
+[training.optimizer]
+@optimizers = "Adam.v1"
+
+[training.optimizer.learn_rate]
+@schedules = "warmup_linear.v1"
+warmup_steps = 250
+total_steps = 20000
+initial_rate = 5e-5
+
+[training.batcher]
+@batchers = "spacy.batch_by_padded.v1"
+discard_oversize = true
+size = 2000
+buffer = 256
+
+[initialize]
+vectors = ${paths.vectors}
+
+  
